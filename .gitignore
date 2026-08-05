@@ -1,0 +1,10 @@
+# Local Python environment and test/build caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# User-provided inputs and generated artifacts
+data/
+output/

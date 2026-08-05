@@ -1,0 +1,62 @@
+input:
+  csv_path: data/points.csv
+  encoding: utf-8-sig
+
+output:
+  directory: output
+  html_filename: japan_bubble_map.html
+  png_filename: japan_bubble_map.png
+  pdf_filename: japan_bubble_map.pdf
+  svg_filename: japan_bubble_map.svg
+
+data_validation:
+  duplicates: error
+
+map:
+  center:
+    latitude: 36.2
+    longitude: 138.2
+  zoom_start: 5
+  tiles: CartoDB positron
+  dataset_order:
+    - データA
+    - データB
+
+bubble:
+  minimum_radius: 4
+  maximum_radius: 28
+  scaling: sqrt
+  zero_value: minimum
+  normalize:
+    mode: global
+
+static_map:
+  figsize:
+    width: 10
+    height: 12
+  dpi: 300
+  title: 日本全国バブルマップ
+  show_legend: true
+  show_dataset_legend: true
+  show_size_legend: true
+  show_grid: true
+  outline_color: black
+  longitude_range:
+    minimum: 122
+    maximum: 154
+  latitude_range:
+    minimum: 20
+    maximum: 46
+  geojson_path: data/geo/japan.geojson
+
+datasets:
+  データA:
+    label: 設備容量
+    color: "#1f77b4"
+    visible: true
+    opacity: 0.55
+  データB:
+    label: 最大需要
+    color: "#d62728"
+    visible: true
+    opacity: 0.55
