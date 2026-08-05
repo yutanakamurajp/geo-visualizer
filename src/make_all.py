@@ -9,6 +9,9 @@ from typing import Sequence
 from .bubble_size import compute_bubble_sizes
 from .config import load_config, resolve_path
 from .data_loader import load_points
+from .flow_loader import load_flows
+from .flow_plot import prepare_flow_geometry
+from .flow_size import compute_flow_widths
 from .interactive_map import save_interactive_map
 from .static_map import save_static_map
 
@@ -20,7 +23,12 @@ def build_parser() -> argparse.ArgumentParser:
         description="Generate an interactive and static Japan multi-series bubble map."
     )
     parser.add_argument("--config", type=Path, default=Path("config.yaml"), help="YAML config path")
-    parser.add_argument("--input", type=Path, help="Override input CSV path")
+    input_group = parser.add_mutually_exclusive_group()
+    input_group.add_argument(
+        "--input", type=Path, help="Override node input CSV path (legacy option)"
+    )
+    input_group.add_argument("--nodes", type=Path, help="Override node input CSV path")
+    parser.add_argument("--flows", type=Path, help="Flow CSV path to overlay")
     parser.add_argument("--output", type=Path, help="Override output directory")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--html-only", action="store_true", help="Generate only the Folium HTML")
@@ -34,7 +42,8 @@ def generate(args: argparse.Namespace) -> list[Path]:
     config_path = args.config.expanduser().resolve()
     config = load_config(config_path)
     base_directory = config_path.parent
-    input_path = args.input.expanduser().resolve() if args.input else resolve_path(
+    node_argument = args.nodes if args.nodes else args.input
+    input_path = node_argument.expanduser().resolve() if node_argument else resolve_path(
         config["input"]["csv_path"], base_directory
     )
     output_directory = args.output.expanduser().resolve() if args.output else resolve_path(
@@ -49,12 +58,26 @@ def generate(args: argparse.Namespace) -> list[Path]:
     )
     points = compute_bubble_sizes(points, config["bubble"])
 
+    flows = None
+    if args.flows:
+        flow_path = args.flows.expanduser().resolve()
+        flows = load_flows(
+            flow_path,
+            points,
+            encoding=str(config["input"]["encoding"]),
+            duplicate_mode=str(config["data_validation"]["duplicates"]),  # type: ignore[arg-type]
+        )
+        flows = compute_flow_widths(flows, config["flow"])
+        flows = prepare_flow_geometry(flows, float(config["flow"]["curvature"]))
+
     created: list[Path] = []
     if not args.static_only:
         html_path = output_directory / str(config["output"]["html_filename"])
-        created.append(save_interactive_map(points, config, html_path))
+        created.append(save_interactive_map(points, config, html_path, flows))
     if not args.html_only:
-        created.extend(save_static_map(points, config, output_directory, base_directory).values())
+        created.extend(
+            save_static_map(points, config, output_directory, base_directory, flows).values()
+        )
     return created
 
 

@@ -9,7 +9,10 @@ from typing import Any
 
 import folium
 from branca.element import Element
+from folium.plugins import PolyLineTextPath
 import pandas as pd
+
+from .flow_plot import prepare_flow_geometry
 
 
 AUTO_COLORS = (
@@ -96,7 +99,10 @@ def _popup(row: pd.Series, label: str) -> str:
 
 
 def _legend_html(
-    styles: Mapping[str, Mapping[str, Any]], points: pd.DataFrame, config: Mapping[str, Any]
+    styles: Mapping[str, Mapping[str, Any]],
+    points: pd.DataFrame,
+    config: Mapping[str, Any],
+    flow_styles: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> str:
     """系列・サイズ・単位を表示するLeaflet上の凡例HTMLを作る。"""
 
@@ -120,6 +126,19 @@ def _legend_html(
         f"width:{radius * 2:.0f}px;height:{radius * 2:.0f}px;'></span>"
         for radius in (minimum, midpoint, maximum)
     )
+    flow_rows = ""
+    if flow_styles:
+        flow_rows = (
+            "<div style='margin-top:7px;'><strong>フロー系列</strong>"
+            + "".join(
+                "<div><span style='display:inline-block;width:18px;height:3px;"
+                f"margin:0 6px 2px 0;background:{escape(str(style['color']))};opacity:"
+                f"{float(config['flow']['opacity']):.2f};'></span>"
+                f"{escape(str(style['label']))}</div>"
+                for style in flow_styles.values()
+            )
+            + "</div>"
+        )
     return f"""
     <div style='position:fixed;bottom:24px;left:24px;z-index:9999;
                 background:white;padding:10px 12px;border:1px solid #777;border-radius:4px;
@@ -128,11 +147,109 @@ def _legend_html(
       <div style='margin-top:7px;'><strong>バブルサイズ</strong><br>{circles}
       <span>最大値 {escape(_display_number(maximum_value))}</span></div>
       <div style='margin-top:5px;'><strong>単位:</strong> {unit_text}</div>
+      {flow_rows}
     </div>
     """
 
 
-def build_interactive_map(points: pd.DataFrame, config: Mapping[str, Any]) -> folium.Map:
+def _flow_tooltip(row: pd.Series, label: str) -> str:
+    """フローの入力値と実描画方向を含むエスケープ済みツールチップを返す。"""
+
+    unit = f" {escape(str(row['unit']))}" if str(row["unit"]) else ""
+    return (
+        f"<strong>{escape(label)}</strong><br>"
+        f"始点: {escape(str(row['from_name']))}<br>"
+        f"終点: {escape(str(row['to_name']))}<br>"
+        f"入力値: {escape(_display_number(row['value']))}{unit}<br>"
+        f"描画方向: {escape(str(row['draw_direction']))}"
+    )
+
+
+def _flow_popup(row: pd.Series, label: str) -> str:
+    """フロー詳細を含むエスケープ済みHTMLテーブルを返す。"""
+
+    entries = (
+        ("フロー系列名", label),
+        ("始点", row["from_name"]),
+        ("終点", row["to_name"]),
+        ("入力値", _display_number(row["value"])),
+        ("描画方向", row["draw_direction"]),
+        ("描画量（絶対値）", _display_number(row["flow_magnitude"])),
+        ("単位", row["unit"]),
+        ("説明", row["description"]),
+    )
+    cells = "".join(
+        f"<tr><th>{escape(title)}</th><td>{escape(str(value))}</td></tr>"
+        for title, value in entries
+    )
+    return (
+        "<table style='border-collapse:collapse;'>"
+        "<tbody>"
+        f"{cells}"
+        "</tbody></table>"
+    )
+
+
+def _add_flow_layers(
+    result: folium.Map, flows: pd.DataFrame, config: Mapping[str, Any]
+) -> dict[str, dict[str, Any]]:
+    """フロー系列ごとのFoliumレイヤーと終端矢印を地図に追加する。"""
+
+    required = {
+        "dataset",
+        "flow_width",
+        "flow_magnitude",
+        "flow_locations",
+        "from_name",
+        "to_name",
+        "value",
+        "unit",
+        "description",
+        "draw_direction",
+    }
+    missing = required.difference(flows.columns)
+    if missing:
+        raise ValueError(f"Flow data is missing required column(s): {sorted(missing)}")
+
+    styles = dataset_styles(flows, config)
+    flow_config = config["flow"]
+    arrow_config = flow_config["arrow"]
+    for dataset, style in styles.items():
+        layer = folium.FeatureGroup(
+            name=f"フロー: {str(style['label'])}", show=bool(style["visible"])
+        )
+        rows = flows.loc[flows["dataset"] == dataset]
+        for _, row in rows.iterrows():
+            if float(row["flow_width"]) <= 0:
+                continue
+            line = folium.PolyLine(
+                locations=row["flow_locations"],
+                color=str(style["color"]),
+                weight=float(row["flow_width"]),
+                opacity=float(flow_config["opacity"]),
+                tooltip=folium.Tooltip(_flow_tooltip(row, str(style["label"])), sticky=True),
+                popup=folium.Popup(_flow_popup(row, str(style["label"])), max_width=360),
+            )
+            line.add_to(layer)
+            if bool(arrow_config["enabled"]):
+                PolyLineTextPath(
+                    line,
+                    "▶",
+                    repeat=False,
+                    offset="88%",
+                    attributes={
+                        "fill": str(style["color"]),
+                        "font-size": f"{float(arrow_config['size']):g}px",
+                        "font-weight": "bold",
+                    },
+                ).add_to(layer)
+        layer.add_to(result)
+    return styles
+
+
+def build_interactive_map(
+    points: pd.DataFrame, config: Mapping[str, Any], flows: pd.DataFrame | None = None
+) -> folium.Map:
     """検証済み・サイズ計算済みの地点データからFolium地図を作成する。"""
 
     required = {"name", "latitude", "longitude", "dataset", "value", "unit", "description", "bubble_radius"}
@@ -169,14 +286,28 @@ def build_interactive_map(points: pd.DataFrame, config: Mapping[str, Any]) -> fo
             ).add_to(layer)
         layer.add_to(result)
 
+    flow_styles: dict[str, dict[str, Any]] | None = None
+    if flows is not None and not flows.empty and bool(config["flow"]["enabled"]):
+        prepared_flows = (
+            flows
+            if "flow_locations" in flows.columns
+            else prepare_flow_geometry(flows, float(config["flow"]["curvature"]))
+        )
+        flow_styles = _add_flow_layers(result, prepared_flows, config)
+
     folium.LayerControl(collapsed=False).add_to(result)
-    result.get_root().html.add_child(Element(_legend_html(styles, points, config)))
+    result.get_root().html.add_child(Element(_legend_html(styles, points, config, flow_styles)))
     return result
 
 
-def save_interactive_map(points: pd.DataFrame, config: Mapping[str, Any], output_path: Path) -> Path:
+def save_interactive_map(
+    points: pd.DataFrame,
+    config: Mapping[str, Any],
+    output_path: Path,
+    flows: pd.DataFrame | None = None,
+) -> Path:
     """Folium地図をHTMLとして保存し、絶対パスを返す。"""
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    build_interactive_map(points, config).save(str(output_path))
+    build_interactive_map(points, config, flows).save(str(output_path))
     return output_path.resolve()

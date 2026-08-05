@@ -23,12 +23,14 @@ import matplotlib.font_manager as font_manager
 matplotlib.use("Agg")
 
 from matplotlib import pyplot as plt
+from matplotlib.patches import FancyArrowPatch
 from matplotlib.font_manager import FontProperties
 from matplotlib.lines import Line2D
 import numpy as np
 import pandas as pd
 
 from .interactive_map import dataset_styles, ordered_datasets
+from .flow_plot import prepare_flow_geometry
 
 
 JAPANESE_FONT_CANDIDATES = (
@@ -115,11 +117,61 @@ def _legend_radius(value: float, maximum: float, minimum: float, maximum_radius:
     return minimum + (maximum_radius - minimum) * np.sqrt(value / maximum)
 
 
+def _draw_flows(
+    axis: Any, flows: pd.DataFrame, config: Mapping[str, Any]
+) -> dict[str, dict[str, Any]]:
+    """Matplotlibの矢印パッチでフローを静止画に重ね描きする。"""
+
+    required = {
+        "dataset",
+        "flow_width",
+        "draw_from_latitude",
+        "draw_from_longitude",
+        "draw_to_latitude",
+        "draw_to_longitude",
+    }
+    missing = required.difference(flows.columns)
+    if missing:
+        raise ValueError(f"Flow data is missing required column(s): {sorted(missing)}")
+
+    prepared = (
+        flows
+        if "curve_offset" in flows.columns
+        else prepare_flow_geometry(flows, float(config["flow"]["curvature"]))
+    )
+    styles = dataset_styles(prepared, config)
+    flow_config = config["flow"]
+    arrow_config = flow_config["arrow"]
+    # バブル中心まで矢印を伸ばすと終端記号が隠れるため、最大バブル半径相当を
+    # points単位で空ける。静止画でも方向が読み取れるようにする。
+    endpoint_padding = float(config["bubble"]["maximum_radius"]) * 0.75
+    for _, row in prepared.iterrows():
+        if float(row["flow_width"]) <= 0:
+            continue
+        style = styles[str(row["dataset"])]
+        arrow = FancyArrowPatch(
+            (float(row["draw_from_longitude"]), float(row["draw_from_latitude"])),
+            (float(row["draw_to_longitude"]), float(row["draw_to_latitude"])),
+            arrowstyle="-|>" if bool(arrow_config["enabled"]) else "-",
+            connectionstyle=f"arc3,rad={float(row['curve_offset']):g}",
+            linewidth=float(row["flow_width"]),
+            color=str(style["color"]),
+            alpha=float(flow_config["opacity"]),
+            mutation_scale=float(arrow_config["size"]),
+            shrinkA=endpoint_padding,
+            shrinkB=endpoint_padding,
+            zorder=2,
+        )
+        axis.add_patch(arrow)
+    return styles
+
+
 def save_static_map(
     points: pd.DataFrame,
     config: Mapping[str, Any],
     output_directory: Path,
     base_directory: Path,
+    flows: pd.DataFrame | None = None,
 ) -> dict[str, Path]:
     """PNG、PDF、SVGの静止画を保存し、形式ごとの絶対パスを返す。"""
 
@@ -143,6 +195,10 @@ def save_static_map(
     )
     basemap.plot(ax=axis, color="#f4f4f4", edgecolor="#777777", linewidth=0.7, zorder=1)
 
+    flow_styles: dict[str, dict[str, Any]] | None = None
+    if flows is not None and not flows.empty and bool(config["flow"]["enabled"]):
+        flow_styles = _draw_flows(axis, flows, config)
+
     point_geometry = gpd.points_from_xy(points["longitude"], points["latitude"])
     geo_points = gpd.GeoDataFrame(points.copy(), geometry=point_geometry, crs="EPSG:4326")
     styles = dataset_styles(points, config)
@@ -160,7 +216,7 @@ def save_static_map(
             alpha=style["opacity"],
             edgecolor=str(static_config["outline_color"]),
             linewidth=0.75,
-            zorder=2,
+            zorder=3,
         )
 
     longitude = static_config["longitude_range"]
@@ -191,6 +247,25 @@ def save_static_map(
                 prop=font_properties,
             )
             axis.add_artist(dataset_legend)
+        if flow_styles:
+            flow_handles = [
+                Line2D(
+                    [0],
+                    [0],
+                    color=str(style["color"]),
+                    alpha=float(config["flow"]["opacity"]),
+                    linewidth=3,
+                    label=str(style["label"]),
+                )
+                for style in flow_styles.values()
+            ]
+            flow_legend = axis.legend(
+                handles=flow_handles,
+                title="Flow dataset",
+                loc="upper right",
+                prop=font_properties,
+            )
+            axis.add_artist(flow_legend)
         if bool(static_config["show_size_legend"]):
             bubble = config["bubble"]
             maximum_value = float(points["value"].max())
