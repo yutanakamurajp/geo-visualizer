@@ -1,5 +1,6 @@
 input:
   csv_path: data/points.csv
+  flow_csv_path: data/flows.csv
   encoding: utf-8-sig
 
 output:
@@ -29,6 +30,20 @@ bubble:
   zero_value: minimum
   normalize:
     mode: global
+
+flow:
+  enabled: true
+  minimum_width: 1.0
+  maximum_width: 10.0
+  scaling: sqrt
+  zero_value: hide
+  normalize:
+    mode: global
+  arrow:
+    enabled: true
+    size: 12
+  opacity: 0.75
+  curvature: 0.12
 
 static_map:
   figsize:
@@ -60,3 +75,8 @@ datasets:
     color: "#d62728"
     visible: true
     opacity: 0.55
+  移動量:
+    label: ノード間移動量
+    color: "#2ca02c"
+    visible: true
+    opacity: 0.75

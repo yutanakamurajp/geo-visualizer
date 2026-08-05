@@ -48,10 +48,12 @@ def _raise_row_error(index: int, column: str, value: object, reason: str) -> Non
     )
 
 
-def _validate_text_columns(frame: pd.DataFrame) -> None:
-    """必須の文字列列が欠損または空文字でないことを確認する。"""
+def _validate_text_columns(
+    frame: pd.DataFrame, columns: tuple[str, ...] = ("name", "dataset")
+) -> None:
+    """指定した必須文字列列が欠損または空文字でないことを確認する。"""
 
-    for column in ("name", "dataset"):
+    for column in columns:
         for index, value in frame[column].items():
             if pd.isna(value) or not str(value).strip():
                 _raise_row_error(index, column, value, "must not be empty")
@@ -68,6 +70,8 @@ def _validate_numeric_column(
     for index, converted_value in converted.items():
         raw_value = raw_values.at[index]
         if pd.isna(converted_value):
+            if str(raw_value).strip().lower() in {"nan", "+nan", "-nan"}:
+                _raise_row_error(index, column, raw_value, "must be finite")
             _raise_row_error(index, column, raw_value, "must be a numeric value")
         if not np.isfinite(float(converted_value)):
             _raise_row_error(index, column, raw_value, "must be finite")
@@ -78,7 +82,11 @@ def _validate_numeric_column(
     frame[column] = converted.astype(float)
 
 
-def _handle_duplicates(frame: pd.DataFrame, mode: DuplicateMode) -> pd.DataFrame:
+def _handle_duplicates(
+    frame: pd.DataFrame,
+    mode: DuplicateMode,
+    warning_category: type[Warning] = DuplicatePointWarning,
+) -> pd.DataFrame:
     """完全重複行を検出し、設定された方針に従って処理する。"""
 
     comparison_columns = [column for column in frame.columns if column != "source_row"]
@@ -87,8 +95,14 @@ def _handle_duplicates(frame: pd.DataFrame, mode: DuplicateMode) -> pd.DataFrame
         return frame
 
     duplicate_rows = [_csv_row_number(int(index)) for index in frame.index[duplicate_mask]]
-    message = f"Duplicate complete rows detected at CSV rows: {duplicate_rows}."
-    warnings.warn(message, DuplicatePointWarning, stacklevel=2)
+    first_duplicate_index = frame.index[duplicate_mask][0]
+    example_column = comparison_columns[0]
+    example_value = frame.at[first_duplicate_index, example_column]
+    message = (
+        f"Duplicate complete rows detected at CSV rows: {duplicate_rows}; "
+        f"column '{example_column}', value {_format_value(example_value)}."
+    )
+    warnings.warn(message, warning_category, stacklevel=2)
     if mode == "error":
         raise DataValidationError(f"{message} Set data_validation.duplicates to first or sum.")
     if mode == "first":

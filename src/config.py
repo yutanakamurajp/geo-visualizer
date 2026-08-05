@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from copy import deepcopy
+import math
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +12,11 @@ import yaml
 
 
 DEFAULT_CONFIG: dict[str, Any] = {
-    "input": {"csv_path": "data/points.csv", "encoding": "utf-8-sig"},
+    "input": {
+        "csv_path": "data/points.csv",
+        "flow_csv_path": "data/flows.csv",
+        "encoding": "utf-8-sig",
+    },
     "output": {
         "directory": "output",
         "html_filename": "japan_bubble_map.html",
@@ -32,6 +37,17 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "scaling": "sqrt",
         "zero_value": "minimum",
         "normalize": {"mode": "global"},
+    },
+    "flow": {
+        "enabled": True,
+        "minimum_width": 1.0,
+        "maximum_width": 10.0,
+        "scaling": "sqrt",
+        "zero_value": "hide",
+        "normalize": {"mode": "global"},
+        "arrow": {"enabled": True, "size": 12},
+        "opacity": 0.75,
+        "curvature": 0.12,
     },
     "static_map": {
         "figsize": {"width": 10, "height": 12},
@@ -123,9 +139,70 @@ def _validate_config(config: Mapping[str, Any]) -> None:
 
     minimum = bubble.get("minimum_radius")
     maximum = bubble.get("maximum_radius")
-    if not isinstance(minimum, (int, float)) or not isinstance(maximum, (int, float)):
+    if (
+        isinstance(minimum, bool)
+        or isinstance(maximum, bool)
+        or not isinstance(minimum, (int, float))
+        or not isinstance(maximum, (int, float))
+        or not math.isfinite(float(minimum))
+        or not math.isfinite(float(maximum))
+    ):
         raise ConfigurationError("bubble radius settings must be numeric.")
     if minimum < 0 or maximum <= 0 or minimum > maximum:
         raise ConfigurationError(
             "bubble radii must satisfy 0 <= minimum_radius <= maximum_radius."
         )
+
+    flow = config.get("flow")
+    if not isinstance(flow, Mapping):
+        raise ConfigurationError("flow must be a mapping.")
+    if not isinstance(flow.get("enabled"), bool):
+        raise ConfigurationError("flow.enabled must be a boolean.")
+    if flow.get("scaling") not in {"sqrt", "linear", "log"}:
+        raise ConfigurationError("flow.scaling must be sqrt, linear, or log.")
+    if flow.get("zero_value") not in {"minimum", "hide"}:
+        raise ConfigurationError("flow.zero_value must be minimum or hide.")
+    normalize = flow.get("normalize")
+    if not isinstance(normalize, Mapping) or normalize.get("mode") not in {
+        "global",
+        "per_dataset",
+    }:
+        raise ConfigurationError(
+            "flow.normalize.mode must be global or per_dataset."
+        )
+    flow_minimum = flow.get("minimum_width")
+    flow_maximum = flow.get("maximum_width")
+    if (
+        isinstance(flow_minimum, bool)
+        or isinstance(flow_maximum, bool)
+        or not isinstance(flow_minimum, (int, float))
+        or not isinstance(flow_maximum, (int, float))
+        or not math.isfinite(float(flow_minimum))
+        or not math.isfinite(float(flow_maximum))
+    ):
+        raise ConfigurationError("flow width settings must be numeric.")
+    if flow_minimum < 0 or flow_maximum <= 0 or flow_minimum > flow_maximum:
+        raise ConfigurationError(
+            "flow widths must satisfy 0 <= minimum_width <= maximum_width."
+        )
+    arrow = flow.get("arrow")
+    if not isinstance(arrow, Mapping) or not isinstance(arrow.get("enabled"), bool):
+        raise ConfigurationError("flow.arrow.enabled must be a boolean.")
+    arrow_size = arrow.get("size")
+    if (
+        isinstance(arrow_size, bool)
+        or not isinstance(arrow_size, (int, float))
+        or not math.isfinite(float(arrow_size))
+        or arrow_size <= 0
+    ):
+        raise ConfigurationError("flow.arrow.size must be a positive number.")
+    opacity = flow.get("opacity")
+    if isinstance(opacity, bool) or not isinstance(opacity, (int, float)) or not 0 <= opacity <= 1:
+        raise ConfigurationError("flow.opacity must be a number from 0 to 1.")
+    curvature = flow.get("curvature")
+    if (
+        isinstance(curvature, bool)
+        or not isinstance(curvature, (int, float))
+        or not 0 <= curvature <= 1
+    ):
+        raise ConfigurationError("flow.curvature must be a number from 0 to 1.")

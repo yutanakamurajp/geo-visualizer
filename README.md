@@ -32,6 +32,23 @@ unit と description は任意です。存在しないときは空文字列と�
 
 読み込み時に必須列、空欄、数値変換、緯度・経度の範囲、有限値、完全重複行を検証します。不正なデータは除外せず、CSV行番号・列名・値を含むエラーで停止します。負値はバブル計算時に入力エラーです。
 
+### フローCSV（ディレクションプロット）
+
+ノード間の移動量を重ねるときは data/flows.csv のような縦持ちCSVを用意し、明示的に `--flows` で渡します。`input.flow_csv_path` は標準のサンプル位置を記録する設定であり、後方互換性のため `--flows` を省略した実行は従来どおりバブルのみを生成します。
+
+| 列 | 必須 | 内容 |
+| --- | --- | --- |
+| from_name | はい | 始点ノード名。points.csv の name を参照し、空欄不可 |
+| to_name | はい | 終点ノード名。points.csv の name を参照し、空欄不可 |
+| dataset | はい | フロー系列名。空欄不可 |
+| value | はい | 移動量（有限の数値） |
+| unit | いいえ | 単位 |
+| description | いいえ | 説明 |
+
+`value > 0` は `from_name → to_name`、`value < 0` は絶対値で太さを決めて `to_name → from_name` に反転します。ゼロは既定で描画しません。フローのツールチップとポップアップには、入力上の始点・終点、入力値、実際の描画方向、単位を併記します。
+
+フローの参照先がノードCSVにない場合、`value` が数値・有限値でない場合、完全重複行、または同じノード名に異なる座標がある場合も、該当CSV行・列・値を示すエラーで停止します。完全重複行は `data_validation.duplicates` の `error` / `first` / `sum` を地点CSVと共有します。
+
 ## 設定
 
 config.yaml から入力、出力、地図、バブル、静止画の設定を変更できます。設定ファイル中の相対パスは、その設定ファイルの場所を基準に解決します。
@@ -40,6 +57,9 @@ config.yaml から入力、出力、地図、バブル、静止画の設定を�
 - bubble.scaling は sqrt（既定）、linear、log から選べます。sqrtは値の平方根で半径を決めるため、見た目の円面積が値に比例しやすい方式です。logは大きな値の差を圧縮します。
 - bubble.zero_value は minimum（最小半径）または hide（描画しない）です。
 - bubble.normalize.mode は global または per_dataset です。globalは全系列で最大値を共有するため、系列間の絶対値を比較したい場合に適しています。per_datasetは各系列で最大値を取るため、系列ごとの相対的な分布を見やすくします。
+- flow.enabled はフロー描画の有効・無効、flow.minimum_width / maximum_width は線幅、flow.scaling は sqrt / linear / log、flow.zero_value は hide / minimum を設定します。正負を問わず絶対値で正規化します。
+- flow.normalize.mode の global / per_dataset はバブルと同じ意味です。flow.opacity、flow.arrow.enabled、flow.arrow.size、flow.curvature（同じノード対の複数フローを少し曲げる量）も設定できます。
+- フロー線の色は `datasets.<フロー系列名>.color` で設定します。未設定のフロー系列はバブルと同じ自動配色規則を使用します。datasets の label / visible もフローの凡例・初期表示に反映されます。
 - map.dataset_order に系列名を列挙すると重なり順を制御できます。CSVにあって設定にない系列は、コード変更なしで自動配色されます。
 - static_map.show_grid、show_dataset_legend、show_size_legend は静止画の表示を切り替えます。
 
@@ -65,15 +85,19 @@ python -m src.make_all --static-only
 
 ~~~powershell
 python -m src.make_all --input data/another_points.csv --output output/sample
+python -m src.make_all --nodes data/points.csv --flows data/flows.csv
+python -m src.make_all --nodes data/points.csv --flows data/flows.csv --output output/flow_sample
+python -m src.make_all --html-only --nodes data/points.csv --flows data/flows.csv
+python -m src.make_all --static-only --nodes data/points.csv --flows data/flows.csv
 ~~~
 
 実行後、生成したすべての絶対パスを表示します。同名ファイルは安全に上書きされ、出力先がなければ作成します。
 
 ## 出力と使い分け
 
-output/japan_bubble_map.html は拡大・縮小、系列ごとの表示切替、ホバー時の値表示、クリック時の詳細表を提供します。同一座標の系列は半透明に重ね、LayerControlで個別に確認できます。地図内の凡例には系列色、サイズ目安、単位を表示します。
+output/japan_bubble_map.html は拡大・縮小、系列ごとの表示切替、ホバー時の値表示、クリック時の詳細表を提供します。同一座標の系列は半透明に重ね、LayerControlで個別に確認できます。フローを指定した場合はフロー系列ごとのレイヤー、太さに比例した曲線、終端矢印を追加し、ホバーとクリックで方向情報を確認できます。地点名・説明・単位などCSV由来のHTMLはエスケープして出力します。
 
-output/japan_bubble_map.png は300 dpiのラスター画像です。output/japan_bubble_map.pdf と output/japan_bubble_map.svg はベクター形式で、資料や論文のレイアウト編集に向きます。静止画には背景地図、輪郭、軸、タイトル、系列凡例、サイズ凡例を含めます。
+output/japan_bubble_map.png は300 dpiのラスター画像です。output/japan_bubble_map.pdf と output/japan_bubble_map.svg はベクター形式で、資料や論文のレイアウト編集に向きます。静止画には背景地図、輪郭、軸、タイトル、バブル系列・サイズ凡例を含め、フローがあればMatplotlib矢印とフロー系列凡例も重ねます。
 
 ## 背景地図とライセンス
 

@@ -6,5 +6,6 @@ __pycache__/
 .mypy_cache/
 
 # User-provided inputs and generated artifacts
-data/
+data/*
+!data/flows.csv
 output/
