@@ -1,4 +1,0 @@
-from_name,to_name,dataset,value,unit,description
-札幌,東京,移動量,120,MW,札幌から東京への移動
-東京,仙台,移動量,-50,MW,東京から仙台への逆向き移動
-大阪,東京,移動量,80,MW,大阪から東京への移動
