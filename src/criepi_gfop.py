@@ -21,7 +21,7 @@ from .static_map import save_static_map
 
 ENCODING = "cp932"
 DEFAULT_DATA_DIRECTORY = Path("data/criepi_GFOP_Inputdata")
-DEFAULT_NODELIST_PATH = Path("../ele/node_dispatch/nodelist.csv")
+DEFAULT_NODELIST_PATH = Path("../modules/node_dispatch/nodelist.csv")
 
 
 def _normalise_node_id(value: object) -> str | None:
