@@ -132,8 +132,9 @@ def compute_bubble_sizes(points: pd.DataFrame, bubble_config: Mapping[str, objec
         )
         return result
 
+    maxima = normalize.get("maximum") or {}  # per_dataset では {系列名: 最大値}(任意)
     radii = pd.Series(index=result.index, dtype=float)
-    for _, group in result.groupby("dataset", sort=False):
+    for name, group in result.groupby("dataset", sort=False):
         group_source_rows = group["source_row"] if "source_row" in group.columns else None
         radii.loc[group.index] = calculate_radii(
             group["value"],
@@ -142,6 +143,7 @@ def compute_bubble_sizes(points: pd.DataFrame, bubble_config: Mapping[str, objec
             scaling,  # type: ignore[arg-type]
             zero_value,  # type: ignore[arg-type]
             group_source_rows,
+            maxima.get(name) if isinstance(maxima, Mapping) else None,
         )
     result["bubble_radius"] = radii
     return result

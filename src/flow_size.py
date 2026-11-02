@@ -52,8 +52,9 @@ def compute_flow_widths(flows: pd.DataFrame, flow_config: Mapping[str, Any]) -> 
                 normalize.get("maximum"),
             )
         else:
+            maxima = normalize.get("maximum") or {}  # per_dataset では {系列名: 最大値}(任意)
             widths = pd.Series(index=result.index, dtype=float)
-            for _, group in result.groupby("dataset", sort=False):
+            for name, group in result.groupby("dataset", sort=False):
                 group_source_rows = (
                     group["source_row"] if "source_row" in group.columns else None
                 )
@@ -64,6 +65,7 @@ def compute_flow_widths(flows: pd.DataFrame, flow_config: Mapping[str, Any]) -> 
                     scaling,  # type: ignore[arg-type]
                     zero_value,  # type: ignore[arg-type]
                     group_source_rows,
+                    maxima.get(name) if isinstance(maxima, Mapping) else None,
                 )
             result["flow_width"] = widths
     except BubbleSizeError as exc:

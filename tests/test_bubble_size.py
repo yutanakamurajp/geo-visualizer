@@ -84,3 +84,11 @@ def test_fixed_maximum_keeps_sizes_comparable_across_maps() -> None:
     assert a.bubble_radius.tolist() == [5.0, 10.0] and b.bubble_radius.tolist() == [5.0, 2.0]
     c = compute_bubble_sizes(pd.DataFrame({"dataset": ["x"], "value": [150.0]}), config)
     assert c.bubble_radius.tolist() == [10.0]  # 超える値は最大半径
+
+
+def test_fixed_maximum_per_dataset() -> None:
+    """per_dataset では系列ごとに最大値を固定できる。書かない系列はデータの最大値。"""
+
+    config = {"minimum_radius": 0, "maximum_radius": 10, "scaling": "linear", "normalize": {"mode": "per_dataset", "maximum": {"a": 100}}}
+    r = compute_bubble_sizes(pd.DataFrame({"dataset": ["a", "b", "b"], "value": [50.0, 2.0, 4.0]}), config)
+    assert r.bubble_radius.tolist() == [5.0, 5.0, 10.0]
