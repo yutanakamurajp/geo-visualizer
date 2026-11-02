@@ -19,6 +19,9 @@ map:
     longitude: 138.2
   zoom_start: 5
   tiles: CartoDB positron
+  # URL のタイルを使うときは出典を書く。例(地理院タイル 淡色地図):
+  # tiles: https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png
+  # attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">地理院タイル</a>'
   dataset_order:
     - データA
     - データB

@@ -263,6 +263,7 @@ def build_interactive_map(
         location=[float(center["latitude"]), float(center["longitude"])],
         zoom_start=int(map_config["zoom_start"]),
         tiles=str(map_config["tiles"]),
+        attr=map_config.get("attribution"),  # URL のタイル(例: 地理院タイル)は出典が必須
         control_scale=True,
     )
     styles = dataset_styles(points, config)
