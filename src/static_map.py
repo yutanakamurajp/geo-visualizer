@@ -227,7 +227,8 @@ def save_static_map(
     axis.set_ylabel("Latitude", fontproperties=font_properties)
     axis.set_title(str(static_config["title"]), fontproperties=font_properties, pad=12)
     axis.set_aspect("equal", adjustable="box")
-    axis.grid(bool(static_config["show_grid"]), linestyle=":", linewidth=0.5, color="#999999")
+    if static_config["show_grid"]:  # grid(False, linestyle=...) は警告を出して線を引いてしまう
+        axis.grid(True, linestyle=":", linewidth=0.5, color="#999999")
 
     if bool(static_config["show_legend"]):
         dataset_legend = None
