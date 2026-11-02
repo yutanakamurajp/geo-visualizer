@@ -145,6 +145,8 @@ def _draw_flows(
     # バブル中心まで矢印を伸ばすと終端記号が隠れるため、最大バブル半径相当を
     # points単位で空ける。静止画でも方向が読み取れるようにする。
     endpoint_padding = float(config["bubble"]["maximum_radius"]) * 0.75
+    if flow_config.get("above_bubbles"):  # バブルの上に描くなら空けなくてよい(短い線が空け幅で消えない)
+        endpoint_padding = 2.0
     for _, row in prepared.iterrows():
         if float(row["flow_width"]) <= 0:
             continue
@@ -160,7 +162,7 @@ def _draw_flows(
             mutation_scale=float(arrow_config["size"]),
             shrinkA=endpoint_padding,
             shrinkB=endpoint_padding,
-            zorder=2,
+            zorder=4 if flow_config.get("above_bubbles") else 2,  # 既定は円の下。true なら円の上(混んだ地域の線を隠さない)
         )
         axis.add_patch(arrow)
     return styles

@@ -59,7 +59,7 @@ config.yaml から入力、出力、地図、バブル、静止画の設定を�
 - bubble.normalize.maximum(任意、global のときだけ)を数値で指定すると、データの最大値ではなくこの値で正規化します。時刻ごとに分けた複数の地図で、同じ値を同じ大きさに描くときに使います。超える値は最大半径です。per_dataset のときは {系列名: 最大値} の対応で系列ごとに指定できます(書かない系列はデータの最大値)。flow.normalize.maximum も同じ意味です。
 - bubble.normalize.mode は global または per_dataset です。globalは全系列で最大値を共有するため、系列間の絶対値を比較したい場合に適しています。per_datasetは各系列で最大値を取るため、系列ごとの相対的な分布を見やすくします。
 - flow.enabled はフロー描画の有効・無効、flow.minimum_width / maximum_width は線幅、flow.scaling は sqrt / linear / log、flow.zero_value は hide / minimum を設定します。正負を問わず絶対値で正規化します。
-- flow.normalize.mode の global / per_dataset はバブルと同じ意味です。flow.opacity、flow.arrow.enabled、flow.arrow.size、flow.curvature（同じノード対の複数フローを少し曲げる量）も設定できます。
+- flow.normalize.mode の global / per_dataset はバブルと同じ意味です。flow.above_bubbles(既定 false)を true にすると、静止画でフローの矢印をバブルの上に描きます(点の混んだ地域で線が隠れないように)。このとき矢印の端は、バブルを避けて空ける幅を 2 pt に縮めます(短い線が消えないように)。flow.opacity、flow.arrow.enabled、flow.arrow.size、flow.curvature（同じノード対の複数フローを少し曲げる量）も設定できます。
 - フロー線の色は `datasets.<フロー系列名>.color` で設定します。未設定のフロー系列はバブルと同じ自動配色規則を使用します。datasets の label / visible もフローの凡例・初期表示に反映されます。
 - map.dataset_order に系列名を列挙すると重なり順を制御できます。CSVにあって設定にない系列は、コード変更なしで自動配色されます。
 - static_map.show_grid、show_dataset_legend、show_size_legend は静止画の表示を切り替えます。
