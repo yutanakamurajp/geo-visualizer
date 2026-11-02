@@ -73,3 +73,14 @@ def test_zero_can_be_hidden() -> None:
     radii = calculate_radii(pd.Series([0, 100]), 4, 28, zero_value="hide")
 
     assert radii.tolist() == [0.0, 28.0]
+
+
+def test_fixed_maximum_keeps_sizes_comparable_across_maps() -> None:
+    """normalize.maximum を固定すると、別の地図でも同じ値は同じ半径になる。"""
+
+    config = {"minimum_radius": 0, "maximum_radius": 10, "scaling": "linear", "normalize": {"mode": "global", "maximum": 100}}
+    a = compute_bubble_sizes(pd.DataFrame({"dataset": ["x", "x"], "value": [50.0, 100.0]}), config)
+    b = compute_bubble_sizes(pd.DataFrame({"dataset": ["x", "x"], "value": [50.0, 20.0]}), config)
+    assert a.bubble_radius.tolist() == [5.0, 10.0] and b.bubble_radius.tolist() == [5.0, 2.0]
+    c = compute_bubble_sizes(pd.DataFrame({"dataset": ["x"], "value": [150.0]}), config)
+    assert c.bubble_radius.tolist() == [10.0]  # 超える値は最大半径

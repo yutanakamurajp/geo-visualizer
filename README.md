@@ -56,6 +56,7 @@ config.yaml から入力、出力、地図、バブル、静止画の設定を�
 - data_validation.duplicates は error（既定）、first、sum から選べます。完全重複を検出すると警告し、errorは停止、firstは先頭行のみ採用、sumは完全重複の値を合算します。
 - bubble.scaling は sqrt（既定）、linear、log から選べます。sqrtは値の平方根で半径を決めるため、見た目の円面積が値に比例しやすい方式です。logは大きな値の差を圧縮します。
 - bubble.zero_value は minimum（最小半径）または hide（描画しない）です。
+- bubble.normalize.maximum(任意、global のときだけ)を数値で指定すると、データの最大値ではなくこの値で正規化します。時刻ごとに分けた複数の地図で、同じ値を同じ大きさに描くときに使います。超える値は最大半径です。flow.normalize.maximum も同じ意味です。
 - bubble.normalize.mode は global または per_dataset です。globalは全系列で最大値を共有するため、系列間の絶対値を比較したい場合に適しています。per_datasetは各系列で最大値を取るため、系列ごとの相対的な分布を見やすくします。
 - flow.enabled はフロー描画の有効・無効、flow.minimum_width / maximum_width は線幅、flow.scaling は sqrt / linear / log、flow.zero_value は hide / minimum を設定します。正負を問わず絶対値で正規化します。
 - flow.normalize.mode の global / per_dataset はバブルと同じ意味です。flow.opacity、flow.arrow.enabled、flow.arrow.size、flow.curvature（同じノード対の複数フローを少し曲げる量）も設定できます。

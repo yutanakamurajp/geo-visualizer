@@ -49,6 +49,7 @@ def compute_flow_widths(flows: pd.DataFrame, flow_config: Mapping[str, Any]) -> 
                 scaling,  # type: ignore[arg-type]
                 zero_value,  # type: ignore[arg-type]
                 source_rows,
+                normalize.get("maximum"),
             )
         else:
             widths = pd.Series(index=result.index, dtype=float)
