@@ -55,12 +55,15 @@ def calculate_radii(
     scaling: ScalingMode = "sqrt",
     zero_value: ZeroValueMode = "minimum",
     source_rows: pd.Series | None = None,
+    maximum_value: float | None = None,
 ) -> pd.Series:
     """値列を半径に変換する。
 
     最大値を1に正規化する。sqrt は面積が値に比例して見える既定の方式で、
     log は log1p を使うためゼロも安全に扱える。値がすべてゼロの場合は
     最小半径（または zero_value=hide のとき0）を返す。
+    maximum_value を渡すと、データの最大値ではなくこの値で正規化する(超える値は最大半径)。
+    時刻ごとに分けた複数の地図で、同じ値を同じ大きさに描くときに使う。
     """
 
     _validate_settings(minimum_radius, maximum_radius, scaling, zero_value)
@@ -69,7 +72,11 @@ def calculate_radii(
         raise BubbleSizeError("All values supplied for bubble sizing must be finite.")
     _check_negative_values(numeric_values, source_rows)
 
-    maximum_value = float(numeric_values.max()) if not numeric_values.empty else 0.0
+    if maximum_value is None:
+        maximum_value = float(numeric_values.max()) if not numeric_values.empty else 0.0
+    elif not maximum_value > 0:
+        raise BubbleSizeError("normalize.maximum must be positive.")
+    numeric_values = numeric_values.clip(upper=maximum_value)
     if maximum_value == 0:
         radii = pd.Series(minimum_radius, index=values.index, dtype=float)
     else:
@@ -121,11 +128,13 @@ def compute_bubble_sizes(points: pd.DataFrame, bubble_config: Mapping[str, objec
             scaling,  # type: ignore[arg-type]
             zero_value,  # type: ignore[arg-type]
             source_rows,
+            normalize.get("maximum"),
         )
         return result
 
+    maxima = normalize.get("maximum") or {}  # per_dataset では {系列名: 最大値}(任意)
     radii = pd.Series(index=result.index, dtype=float)
-    for _, group in result.groupby("dataset", sort=False):
+    for name, group in result.groupby("dataset", sort=False):
         group_source_rows = group["source_row"] if "source_row" in group.columns else None
         radii.loc[group.index] = calculate_radii(
             group["value"],
@@ -134,6 +143,7 @@ def compute_bubble_sizes(points: pd.DataFrame, bubble_config: Mapping[str, objec
             scaling,  # type: ignore[arg-type]
             zero_value,  # type: ignore[arg-type]
             group_source_rows,
+            maxima.get(name) if isinstance(maxima, Mapping) else None,
         )
     result["bubble_radius"] = radii
     return result

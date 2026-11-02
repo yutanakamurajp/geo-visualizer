@@ -145,6 +145,8 @@ def _draw_flows(
     # バブル中心まで矢印を伸ばすと終端記号が隠れるため、最大バブル半径相当を
     # points単位で空ける。静止画でも方向が読み取れるようにする。
     endpoint_padding = float(config["bubble"]["maximum_radius"]) * 0.75
+    if flow_config.get("above_bubbles"):  # バブルの上に描くなら空けなくてよい(短い線が空け幅で消えない)
+        endpoint_padding = 2.0
     for _, row in prepared.iterrows():
         if float(row["flow_width"]) <= 0:
             continue
@@ -160,7 +162,7 @@ def _draw_flows(
             mutation_scale=float(arrow_config["size"]),
             shrinkA=endpoint_padding,
             shrinkB=endpoint_padding,
-            zorder=2,
+            zorder=4 if flow_config.get("above_bubbles") else 2,  # 既定は円の下。true なら円の上(混んだ地域の線を隠さない)
         )
         axis.add_patch(arrow)
     return styles
@@ -227,7 +229,8 @@ def save_static_map(
     axis.set_ylabel("Latitude", fontproperties=font_properties)
     axis.set_title(str(static_config["title"]), fontproperties=font_properties, pad=12)
     axis.set_aspect("equal", adjustable="box")
-    axis.grid(bool(static_config["show_grid"]), linestyle=":", linewidth=0.5, color="#999999")
+    if static_config["show_grid"]:  # grid(False, linestyle=...) は警告を出して線を引いてしまう
+        axis.grid(True, linestyle=":", linewidth=0.5, color="#999999")
 
     if bool(static_config["show_legend"]):
         dataset_legend = None
